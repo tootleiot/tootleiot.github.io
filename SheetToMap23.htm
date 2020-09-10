@@ -1,0 +1,334 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<title>Device Map</title>
+    
+    <meta charset="UTF-8">
+  	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  	<meta name="Device Map" content="Particle to Google Sheet to Open Street Map">
+  	<meta name="Austin Stokes" content="St.Thomas University">
+    
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.5.1/dist/leaflet.css"
+   	integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+   	crossorigin="">
+    <!-- Make sure you put this AFTER Leaflet's CSS -->
+    <script src="https://unpkg.com/leaflet@1.5.1/dist/leaflet.js"
+	integrity="sha512-GffPMF3RvMeYyc1LWMHtK8EbPv0iNZ8/oTtHPx9/cc2ILxQ+u905qIwdpULaqDkyBKgOaB57QTMg7ztg8Jm2Og=="
+	crossorigin=""></script>
+	<script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+    
+    <style>
+		table, th, td {
+  		border: 1px solid black;
+  		border-collapse: collapse;
+		}
+	</style>
+</head>
+<body style="background-color:rgb(220,220,220);" onload="loadData()">
+
+<h1>Device Map</h1>
+<div id="map" style="width: 600px; height: 400px; position: relative;"></div>
+
+<iframe name='onOffFrame' height='50' width='596'></iframe>
+<br/>
+<button onclick="setLoadDataInt(1)">Refresh Data Every Minute</button>
+<button onclick="setLoadDataInt(0)">Stop Refreshing Data</button>
+<br/>
+<p id='dataInt'>Not Refreshing Data</p>
+
+<p><b>Last Recieved Data From Each Unique Device</b></p>
+<p>Devices will only recieve the ForceTurnOff when it next wakes up, this may take up to an hour</p>
+
+<table class="table table bordered table-striped" id="uniqueTable1">
+	<thead>
+		<tr>
+        	<th>UniqueDeviceID</th>
+          	<th>Latitude</th>
+          	<th>Longitude</th>
+            <th>StateOfCharge</th>
+          	<th>AwakeState</th>
+          	<th>AliveState</th>
+          	<th>Timestamp</th>
+            <th>ForceTurnOff</th>
+		</tr>
+	</thead>
+	<tbody id="uniqueTableBody1">
+	</tbody>
+</table>
+
+<table class="table table bordered table-striped" id="uniqueTable2" style="display: none">
+	<thead>
+		<tr>
+        	<th>UniqueDeviceID</th>
+          	<th>Latitude</th>
+          	<th>Longitude</th>
+            <th>StateOfCharge</th>
+          	<th>AwakeState</th>
+          	<th>AliveState</th>
+          	<th>Timestamp</th>
+            <th>ForceTurnOff</th>
+		</tr>
+	</thead>
+	<tbody id="uniqueTableBody2">
+	</tbody>
+</table>
+
+<br/>
+<p id='demo'>All Data For All Devices</p>
+
+<table class="table table bordered table-striped" id="fullTable1">
+	<thead>
+		<tr>
+        	<th>DeviceID</th>
+          	<th>Latitude</th>
+          	<th>Longitude</th>
+            <th>StateOfCharge</th>
+          	<th>AwakeState</th>
+          	<th>AliveState</th>
+          	<th>Timestamp</th>
+		</tr>
+	</thead>
+	<tbody id="fullTableBody1">
+	</tbody>
+</table>
+
+<table class="table table bordered table-striped" id="fullTable2" style="display: none">
+	<thead>
+		<tr>
+        	<th>DeviceID</th>
+          	<th>Latitude</th>
+          	<th>Longitude</th>
+            <th>StateOfCharge</th>
+          	<th>AwakeState</th>
+          	<th>AliveState</th>
+          	<th>Timestamp</th>
+		</tr>
+	</thead>
+	<tbody id="fullTableBody2">
+	</tbody>
+</table>
+
+<script>
+//Adds function to get active overlay
+L.Control.Layers.include({
+  getOverlays: function() {
+    // create hash to hold all layers
+    var control, layers;
+    layers = {};
+    control = this;
+
+    // loop thru all layers in control
+    control._layers.forEach(function(obj) {
+      var layerName;
+
+      // check if layer is an overlay
+      if (obj.overlay) {
+        // get name of overlay
+        layerName = obj.name;
+        // store whether it's present on the map or not
+        return layers[layerName] = control._map.hasLayer(obj.layer);
+      }
+    });
+
+    return layers;
+  }
+});
+</script>
+
+<script>	
+//Creates the map
+var mbAttr = 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+	'<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+	'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>';
+var mbUrl = 'https://api.mapbox.com/styles/v1/mapbox/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoidGhlbXJpbmRlZWQiLCJhIjoiY2p6OGxkamFrMThwMTNncWluZDY0enpzaCJ9.njj7RFETPM5-X_DYEuF_Pw';
+	
+var streets  = L.tileLayer(mbUrl, {id: 'streets-v9',   attribution: mbAttr});
+var satellite = L.tileLayer(mbUrl, {id: 'satellite-streets-v9', attribution: mbAttr});
+var grayscale = L.tileLayer(mbUrl, {id: 'light-v9', attribution: mbAttr});
+
+//Sets initial values of map.
+var map = L.map('map', {
+	center: [44.958845, -93.169220],
+	zoom: 5,
+	layers: [streets]
+});
+
+var baseLayers = {
+	"Streets": streets,
+	"Satellite": satellite,
+    "Grayscale": grayscale
+};
+    
+var overlayLayers = {};
+var controlLayer = new L.Control.Layers(baseLayers,overlayLayers,sortLayers=true);
+controlLayer.addTo(map); 
+
+//Gets the color of the line based on the last 6 numbers of the DeviceID
+function getColor(id) {
+  var color = '#';
+  color += id % 1000000;
+  return color;
+}
+
+var DeviceID = [];
+var Latitude = [];
+var Longitude = [];
+var StateOfCharge = [];
+var AwakeState = [];
+var AliveState = [];
+var Timestamp = [];
+  
+var uniqueDevice = [];
+var uniqueDeviceName = [];
+var uniqueActiveDeviceName = [];
+var groups = [];
+
+var interval;
+
+//Load all the JSON data from the Google Sheet
+function loadData(){
+	//Find the currently active layers so they can be reenabled later
+	uniqueActiveDeviceName = [];
+    
+    var activeOverlayLayers = controlLayer.getOverlays();
+	for (var overlayId in activeOverlayLayers) {
+    	if(activeOverlayLayers[overlayId]){
+        	uniqueActiveDeviceName.push(overlayId);
+       	}
+	}
+    
+    //Remove layers from map and the control
+	var i;
+	for (i = 0; i < groups.length; i++) {
+    	groups[i].remove();
+        controlLayer.removeLayer(groups[i]);
+    }
+    
+	DeviceID = [];
+	Latitude = [];
+	Longitude = [];
+	StateOfCharge = [];
+	AwakeState = [];
+	AliveState = [];
+	Timestamp = [];
+  
+	uniqueDevice = [];
+	uniqueDeviceName = [];
+	groups = [];
+    
+    //Reset hidden tables
+	document.getElementById('fullTableBody2').innerHTML = ('');
+    
+    document.getElementById('uniqueTableBody2').innerHTML = ('');
+    
+    //Get sheet data
+	$.getJSON("https://spreadsheets.google.com/feeds/list/1vAugKc-t0__JrNlRxwP4wtqenw6cwAJxPypNi8Eugu8/od6/public/values?alt=json", function (data) {
+
+		var sheetData = data.feed.entry;
+		
+        //Put the data from the json into variables
+		var i;
+		for (i = 0; i < sheetData.length; i++) {
+			DeviceID[i] = data.feed.entry[i]['gsx$deviceid']['$t'];
+          	Latitude[i] = data.feed.entry[i]['gsx$latitude']['$t'];
+          	Longitude[i] = data.feed.entry[i]['gsx$longitude']['$t'];
+          	StateOfCharge[i] = data.feed.entry[i]['gsx$stateofcharge']['$t'];
+          	AwakeState[i] = data.feed.entry[i]['gsx$awakestate']['$t'];
+          	AliveState[i] = data.feed.entry[i]['gsx$alivestate']['$t'];
+          	Timestamp[i] = data.feed.entry[i]['gsx$timestamp']['$t'];
+			
+            //Put a line of data into hidden full table
+			document.getElementById('fullTableBody2').innerHTML += ('<tr>'+'<td>'+DeviceID[i]+'</td>'+'<td>'+Latitude[i]+'</td>'+'<td>'+Longitude[i]+'</td>'+'<td>'+StateOfCharge[i]+'</td>'+'<td>'+AwakeState[i]+'</td>'+'<td>'+AliveState[i]+'</td>'+'<td>'+Timestamp[i]+'</td>'+'</tr>');
+			
+            //Check for uniqueness
+			var isUnique = 1;
+          	var j;
+          	for (j = 0; j < uniqueDevice.length; j++){
+              	if(uniqueDevice[j]==DeviceID[i]){
+                	isUnique = 0;
+              	}
+          	}
+          	if(isUnique){
+              	uniqueDevice.push(DeviceID[i]);
+              	uniqueDeviceName.push(String(DeviceID[i]));
+          	}
+      	}
+        //Run next functions
+        //These must be run from inside the $.getJSON because it is asynchronous
+        //but the other fuctions rely on the JSON to run
+      	getMapPoints();
+      	addLayerToMap();
+      	switchData();
+  	});
+}
+
+//Set up the unique data table and the lines on the map
+function getMapPoints(){
+	var i;
+	for (i = 0; i < uniqueDevice.length; i++) {
+		groups[i] = L.layerGroup();
+		var j;
+        var k;
+		var latlng = [];
+        //run though data to check if it matches unique ID
+		for (j = 0; j < DeviceID.length; j++) {
+			if(uniqueDevice[i]==DeviceID[j]){
+				latlng.push(L.latLng(Latitude[j],Longitude[j]));
+                k=j;
+			}
+		}
+        //Add the line
+		L.polyline(latlng,{color: getColor(uniqueDevice[i])}).addTo(groups[i]);
+        //Add the end marker and popup
+		L.marker(latlng[latlng.length-1]).bindPopup(
+        "Last Known Location<br />DeviceID: "+ DeviceID[k]
+        + "<br />Latitude: "+ Latitude[k]
+        + "<br />Longitude: "+ Longitude[k]
+        + "<br />Taken at: "+ Timestamp[k]).addTo(groups[i]);
+        
+        //Fill unique hidden table and add the ForceTurnOff form
+        document.getElementById('uniqueTableBody2').innerHTML += ('<tr>'+'<td>'+DeviceID[k]+'</td>'+'<td>'+Latitude[k]+'</td>'+'<td>'+Longitude[k]+'</td>'+'<td>'+StateOfCharge[k]+'</td>'+'<td>'+AwakeState[k]+'</td>'+'<td>'+AliveState[k]+'</td>'+'<td>'+Timestamp[k]+'</td>'+'<td>'+
+        '<form action="https://api.particle.io/v1/products/8957/devices/'+DeviceID[k]+'/kill?access_token=260be15cb028a6a4cfc004df5215c07b14335d7e" method="POST"><input type="radio" name="arg" value="1">Turn On<input type="radio" name="arg" value="0">Turn Off<input type="submit" formtarget="onOffFrame" value="Submit"></form>'
+        +'</td>'+'</tr>');
+	}
+}
+
+//Add the layers to the control and reenable layers that were on before refresh
+function addLayerToMap(){
+	var overlayLayers = {};
+ 
+    var i;
+    for (i = 0; i < uniqueDevice.length; i++) {
+    	controlLayer.addOverlay(groups[i],uniqueDeviceName[i]);
+        var j;
+        for (j = 0; j < uniqueActiveDeviceName.length; j++) {
+        	if(uniqueDeviceName[i] == uniqueActiveDeviceName[j]){
+            	groups[i].addTo(map);
+            }
+    	}
+    }
+}
+
+//Fill the visable tables with data from the hidden tables
+function switchData(){
+	document.getElementById('fullTableBody1').innerHTML = document.getElementById('fullTableBody2').innerHTML;
+    document.getElementById('uniqueTableBody1').innerHTML = document.getElementById('uniqueTableBody2').innerHTML;
+}
+
+//Set the refresh of data or stop it
+function setLoadDataInt(reload){
+	if(reload){
+		document.getElementById('dataInt').innerHTML = ('Refreshing Data Every Minute');
+        //Run loadData every minute
+		interval = setInterval(loadData,60000);
+    }
+    else{
+    	document.getElementById('dataInt').innerHTML = ('Not Refreshing Data');
+        //Stop running loadData every minute
+		clearTimeout(interval);
+    }
+}
+</script>
+
+</body>
+</html>

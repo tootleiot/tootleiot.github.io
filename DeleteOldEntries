@@ -1,0 +1,37 @@
+/**
+ * Removes old rows from the current sheet but will always keep at least 1 entry per device.
+ */
+function DeleteOldEntries() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Sheet1");//assumes Live Events is the name of the sheet
+  var datarange = sheet.getDataRange();
+  var lastrow = datarange.getLastRow();
+  var values = datarange.getValues();// get all data in a 2D array
+
+  var currentDate = new Date();
+  var pastDate = new Date();
+  pastDate.setDate(currentDate.getDate() - 30); //Subtract currentDate by number of days to go back
+  
+  var uniqueDeviceID = [];
+
+  for (i=lastrow;i>=2;i--) {
+    var tempDateValue = values[i-1][6];// arrays are 0 indexed so row1 = values[0] and col3 = [2]
+    var tempDeviceID = values[i-1][0];
+    var unique = 1;
+    var uniqueLength = uniqueDeviceID.length;
+    for(j=0;j<uniqueLength;j++){
+      if(tempDeviceID==uniqueDeviceID[j]){
+        unique = 0;
+        break;
+      }
+    }
+    if(unique){
+      uniqueDeviceID.push(tempDeviceID);
+    }
+    var tempDate = new Date(tempDateValue);
+    if ((tempDate.getTime()!=NaN) && (tempDate.getTime() <= pastDate.getTime()) && (!unique))
+    {
+      sheet.deleteRow(i);
+    }//closes if
+  }//closes for loop
+}//closes function

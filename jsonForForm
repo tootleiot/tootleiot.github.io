@@ -1,0 +1,11 @@
+          
+{
+  "DeviceID": "{{{PARTICLE_DEVICE_ID}}}",
+  "Latitude": "{{La}}",
+  "Longitude": "{{Lo}}",
+  "StateOfCharge": "{{C}}",
+  "AwakeState": "{{A}}",
+  "AliveState": "{{S}}"
+}
+
+     
